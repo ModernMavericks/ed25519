@@ -1,0 +1,31 @@
+#!/bin/sh
+set -eu
+R="$(cd "$(dirname "$0")/.." && pwd)"
+export MAVERICKS_SCRIPTS="${MAVERICKS_SCRIPTS:-/Users/schmonz/Documents/shared-trees/mavericks-shared-cmake/scripts}"
+STAGE="$(mktemp -d)"; trap 'rm -rf "$STAGE"' EXIT
+ED_ROOT="$R" sh "$R/build/build-tools.sh" "$STAGE" >/dev/null
+for t in ed25519-keygen ed25519-sign; do
+  b="$STAGE/usr/local/bin/$t"
+  [ -x "$b" ] || { echo "missing $t" >&2; exit 1; }
+  lipo -info "$b" | grep -q x86_64 || { echo "$t: no x86_64 slice" >&2; exit 1; }
+  lipo -info "$b" | grep -q arm64  || { echo "$t: no arm64 slice"  >&2; exit 1; }
+done
+# The keygen's native (host-arch) slice must run: write the private key to a 0600 file + a .pub,
+# print the PUBLIC key to stdout, and NEVER print the private key.
+KT="$(mktemp -d)"; trap 'rm -rf "$STAGE" "$KT"' EXIT
+out="$("$STAGE/usr/local/bin/ed25519-keygen" -f "$KT/k")"
+[ -f "$KT/k" ] || { echo "keygen did not write the private key file" >&2; rm -rf "$KT"; exit 1; }
+mode=$(ls -l "$KT/k" | cut -c1-10)
+[ "$mode" = "-rw-------" ] || { echo "private key file mode is $mode, want -rw------- (0600)" >&2; rm -rf "$KT"; exit 1; }
+grep -qE '^[A-Za-z0-9+/]{128}={0,2}$' "$KT/k" || { echo "private key file is not the expected 96-byte base64 blob" >&2; rm -rf "$KT"; exit 1; }
+[ -f "$KT/k.pub" ] || { echo "keygen did not write the .pub file" >&2; rm -rf "$KT"; exit 1; }
+printf '%s\n' "$out" | grep -qE '[A-Za-z0-9+/]{40,}={0,2}' || { echo "keygen did not print a public key" >&2; rm -rf "$KT"; exit 1; }
+priv="$(cat "$KT/k")"
+case "$out" in *"$priv"*) echo "keygen leaked the private key to stdout" >&2; rm -rf "$KT"; exit 1;; esac
+# ed25519-sign round-trip: sign a file with the generated key. The signer ed25519_verify's before
+# printing, so a 64-byte (88-char base64) signature back means sign+verify both work end-to-end.
+echo test-message > "$KT/msg"
+sig="$("$STAGE/usr/local/bin/ed25519-sign" -s "$priv" "$KT/msg")"
+printf '%s\n' "$sig" | grep -qE '^[A-Za-z0-9+/]{86}==$' || { echo "ed25519-sign did not emit a valid 64-byte signature" >&2; rm -rf "$KT"; exit 1; }
+rm -rf "$KT"
+echo "build-tools OK"
