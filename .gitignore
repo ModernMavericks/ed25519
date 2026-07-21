@@ -1,0 +1,10 @@
+/VERSION
+/UPSTREAM_VERSION
+/build/stage/
+/build/obj/
+/build/out/
+/build/ed25519/
+dist/
+._*
+.DS_Store
+.superpowers/
