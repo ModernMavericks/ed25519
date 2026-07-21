@@ -1,0 +1,94 @@
+name: release
+
+# Builds Universal ed25519 tools (x86_64@10.9 + arm64@11) on an Apple-Silicon runner and
+# ships a double-clickable .pkg + tarball. Entry points:
+#   - push to main: if the pinned orlp/ed25519 commit's date has no release yet -> cut
+#     v<date>-mavericks.1. Otherwise build only (CI smoke), no release.
+#   - workflow_dispatch (local_release=true): cut the next v<date>-mavericks.(N+1).
+#   - v* tag: publish that exact version.
+
+on:
+  push:
+    branches: [main]
+    tags: ['*-mavericks.*']
+  workflow_dispatch:
+    inputs:
+      local_release:
+        description: "Cut a local -mavericks.(N+1) release for the current pinned commit"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: macos-26   # Apple Silicon; cross-builds the x86_64/10.9 slice. Use macos-15 if 26 is unavailable.
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # version.sh needs the full tag history
+
+      - name: Install mavericks-shared-cmake
+        uses: ModernMavericks/shared-cmake/.github/actions/install@v1  # mavericks-shared-cmake
+
+      - name: Verify shared-cmake installed
+        run: |
+          dir="$(cat "$HOME/.cmake/packages/MavericksSharedCMake/"* | head -1)/scripts"
+          [ -d "$dir" ] || { echo "::error::shared-cmake scripts not found at $dir"; exit 1; }
+
+      - name: Fetch upstream + derive the date-based version
+        id: ver
+        run: |
+          set -eu
+          src="$(sh build/fetch-ed25519.sh)"
+          sh build/derive-upstream-version.sh "$src"
+          if [ "$GITHUB_REF_TYPE" = tag ]; then
+            full="$GITHUB_REF_NAME"; tag="$GITHUB_REF_NAME"; rel=yes
+          else
+            mode=auto
+            if [ "${{ github.event_name }}" = workflow_dispatch ] && [ "${{ inputs.local_release }}" = "true" ]; then
+              mode=local
+            fi
+            out="$(sh build/version.sh "$mode")"
+            full="$(printf '%s\n' "$out" | sed -n 's/^FULL=//p')"
+            tag="$(printf '%s\n' "$out"  | sed -n 's/^TAG=//p')"
+            rel="$(printf '%s\n' "$out"  | sed -n 's/^RELEASE=//p')"
+          fi
+          printf '%s\n' "$full" > VERSION
+          { echo "full=$full"; echo "tag=$tag"; echo "release=$rel"; } >> "$GITHUB_OUTPUT"
+          echo "version=$full tag=$tag release=$rel"
+
+      - name: Build the Universal tools
+        run: sh build/build-tools.sh
+
+      - name: Package the .pkg + tarball
+        run: VERSION="${{ steps.ver.outputs.full }}" STAGE="build/stage" sh build/package-pkg.sh
+
+      - name: Collect artifacts
+        run: |
+          mkdir -p dist
+          V="${{ steps.ver.outputs.full }}"
+          cp "build/out/ed25519-${V}.pkg" dist/
+          ( cd dist && shasum -a 256 * > SHA256SUMS )
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mavericks-ed25519
+          path: dist/*
+
+      - name: Publish GitHub Release
+        if: steps.ver.outputs.release == 'yes'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${{ steps.ver.outputs.tag }}"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" dist/* --clobber
+          else
+            gh release create "$TAG" dist/* --title "$TAG" --generate-notes
+          fi
