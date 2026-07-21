@@ -1,0 +1,15 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["github>ModernMavericks/shared-cmake"],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "fileMatch": ["^UPSTREAM_COMMIT$"],
+      "matchStrings": ["^(?<currentDigest>[0-9a-f]{40})\\s*$"],
+      "depNameTemplate": "orlp/ed25519",
+      "packageNameTemplate": "https://github.com/orlp/ed25519",
+      "datasourceTemplate": "git-refs",
+      "currentValueTemplate": "master"
+    }
+  ]
+}
