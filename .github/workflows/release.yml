@@ -29,7 +29,7 @@ jobs:
   build:
     runs-on: macos-26   # Apple Silicon; cross-builds the x86_64/10.9 slice. Use macos-15 if 26 is unavailable.
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0   # version.sh needs the full tag history
 
