@@ -11,6 +11,8 @@ on:
   push:
     branches: [main]
     tags: ['*-mavericks.*']
+  pull_request:
+    branches: [main]          # PR build is the status check Renovate automerge waits on
   workflow_dispatch:
     inputs:
       local_release:
@@ -58,6 +60,8 @@ jobs:
             full="$(printf '%s\n' "$out" | sed -n 's/^FULL=//p')"
             tag="$(printf '%s\n' "$out"  | sed -n 's/^TAG=//p')"
             rel="$(printf '%s\n' "$out"  | sed -n 's/^RELEASE=//p')"
+            # only main (push or workflow_dispatch) cuts a release; PRs and non-main branches never publish
+            if [ "$GITHUB_REF_NAME" != main ]; then rel=no; fi
           fi
           printf '%s\n' "$full" > VERSION
           { echo "full=$full"; echo "tag=$tag"; echo "release=$rel"; } >> "$GITHUB_OUTPUT"
