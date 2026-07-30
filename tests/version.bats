@@ -2,12 +2,16 @@ setup() {
   REPO="$(cd "$BATS_TEST_DIRNAME/.." && pwd)"
   TMP="$(mktemp -d)"
   mkdir -p "$TMP/build"
-  cp "$REPO/build/lib.sh" "$REPO/build/version.sh" "$TMP/build/"
+  # Copy the WHOLE scaffolding, not a named subset: version.sh is a thin wrapper that sources
+  # msc.sh to locate the shared implementation, so cherry-picking files silently breaks it.
+  cp "$REPO"/build/*.sh "$TMP/build/"
   printf '20190301\n' > "$TMP/UPSTREAM_COMMIT"   # unused by version.sh, present for lib.sh
   printf '20190301\n' > "$TMP/UPSTREAM_VERSION"
 }
 teardown() { rm -rf "$TMP"; }
-run_ver() { ( cd "$TMP" && ED_ROOT="$TMP" MAVERICKS_TAGS="$1" sh build/version.sh "$2" ); }
+# MAVERICKS_ROOT is the family-wide root variable now (the shared version.sh reads it); ED_ROOT stays
+# set for this repo's own build scripts.
+run_ver() { ( cd "$TMP" && MAVERICKS_ROOT="$TMP" ED_ROOT="$TMP" MAVERICKS_TAGS="$1" sh build/version.sh "$2" ); }
 
 @test "auto, no prior tags -> mavericks.1, release" {
   run run_ver "" auto
