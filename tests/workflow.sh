@@ -18,8 +18,9 @@ done
 for bad in SPARKLE_PRIVATE_KEY sign_and_appcast appcast; do
   grep -qi "$bad" "$W" && { echo "release.yml should not mention $bad" >&2; fail=1; } || true
 done
-# yaml sanity if a parser is present.
-if command -v python3 >/dev/null; then
+# yaml sanity if a parser is present. Check PyYAML is IMPORTABLE, not merely that python3 exists: the
+# runner has python3 without PyYAML, so this reported "not valid yaml" for a perfectly good file.
+if command -v python3 >/dev/null && python3 -c 'import yaml' 2>/dev/null; then
   python3 -c 'import sys,yaml; yaml.safe_load(open(sys.argv[1]))' "$W" || { echo "release.yml not valid yaml" >&2; fail=1; }
 fi
 [ "$fail" -eq 0 ] && echo "workflow OK"
