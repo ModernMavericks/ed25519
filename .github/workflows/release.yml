@@ -30,6 +30,9 @@ concurrency:
 jobs:
   build:
     runs-on: macos-26   # Apple Silicon; cross-builds the x86_64/10.9 slice. Use macos-15 if 26 is unavailable.
+    outputs:
+      version: ${{ steps.ver.outputs.full }}
+      publish: ${{ steps.ver.outputs.release }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -83,21 +86,23 @@ jobs:
           mkdir -p dist
           V="${{ steps.ver.outputs.full }}"
           cp "build/out/ed25519-${V}.pkg" dist/
-          ( cd dist && shasum -a 256 * > SHA256SUMS )
+          # The body travels IN the artifact: publish-release.yml does not check out the repo, and it
+          # refuses an empty body. This repo keeps no release-notes/ dir (it ships a signing tool with
+          # no updater and no Sparkle feed to describe), so generate a minimal one rather than publish
+          # commit-derived notes nobody wrote. No SHA256SUMS here -- the workflow regenerates it.
+          printf '## ed25519 %s\n\nThe ed25519-sign / ed25519-keygen tools the ModernMavericks family signs releases with, built for OS X 10.9 (x86_64 + arm64).\n' "$V" > dist/RELEASE_NOTES.md
 
       - uses: actions/upload-artifact@v7
         with:
           name: mavericks-ed25519
           path: dist/*
 
-      - name: Publish GitHub Release
-        if: steps.ver.outputs.release == 'yes'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          TAG="${{ steps.ver.outputs.tag }}"
-          if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" dist/* --clobber
-          else
-            gh release create "$TAG" dist/* --title "$TAG" --generate-notes
-          fi
+  publish:
+    if: needs.build.outputs.publish == 'yes'
+    needs: [build]
+    permissions:
+      contents: write
+    uses: ModernMavericks/shared-cmake/.github/workflows/publish-release.yml@v1
+    with:
+      version: ${{ needs.build.outputs.version }}
+      artifact: mavericks-ed25519

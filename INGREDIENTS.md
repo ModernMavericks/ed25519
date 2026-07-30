@@ -30,7 +30,8 @@ with `own-upstream-paths: UPSTREAM_COMMIT`.
 
 ## Release notes
 
-This repo publishes with `--generate-notes` (GitHub's commit-derived notes) and keeps no
-`release-notes/` directory: the product is a single signing tool with no Sparkle updater and no appcast
-`<description>` to fill. If it ever grows one, adopt `release-notes-file.sh` as golang and
+This repo keeps no `release-notes/` directory: the product is a single signing tool with no Sparkle
+updater and no feed description to fill. Its release workflow generates a minimal `RELEASE_NOTES.md`
+into the artifact, which the shared `publish-release.yml` uses as the Release body — it refuses an
+empty one. If this ever grows curated notes, adopt `release-notes-file.sh` as golang and
 macports-legacy-support do.

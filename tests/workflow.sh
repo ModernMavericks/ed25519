@@ -11,7 +11,7 @@ for needle in \
   'build/version.sh' \
   'build/build-tools.sh' \
   'build/package-pkg.sh' \
-  'gh release create'; do
+  'publish-release.yml@v1'; do
   grep -q "$needle" "$W" || { echo "release.yml missing: $needle" >&2; fail=1; }
 done
 # Must NOT reference Sparkle signing/appcast (out of scope).
