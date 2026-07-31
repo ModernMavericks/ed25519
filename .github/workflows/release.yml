@@ -93,8 +93,8 @@ jobs:
           printf '## ed25519 %s\n\nThe ed25519-sign / ed25519-keygen tools the ModernMavericks family signs releases with, built for OS X 10.9 (x86_64 + arm64).\n' "$V" > dist/RELEASE_NOTES.md
 
       # Conformance: do the artifacts about to be published agree with each other and with the
-      # family's schemes? Gated like the signing step -- a non-publishing build has no appcast, and
-      # this is a question about a release rather than about a build.
+      # family's schemes? Gated like the signing step: this is a question about a release rather than
+      # about a build, and a non-publishing build has not produced the things it would compare.
       - name: Artifact conformance
         if: steps.ver.outputs.release == 'yes'
         run: |
